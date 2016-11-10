@@ -1,18 +1,12 @@
 package com.example.wper_smile.weatherapp;
 
 import java.text.SimpleDateFormat;
-
-import android.app.ActionBar;
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.PendingIntent;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.res.Resources;
-import android.graphics.Color;
-import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
-import android.net.Uri;
 import android.os.Handler;
 import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
@@ -23,7 +17,6 @@ import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
@@ -45,57 +38,33 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
 
-
 public class MainActivity extends AppCompatActivity {
 
-    private final static String MyFileName="myfile";
+    String CityFileName="CitylData";
+    String WeatherFileName="WeatherAllData";
+    String WeatherTypeFileName="WeatherTypeData";
+    String PhoneNumFileName="PhoneNumData";
+
     Runnable getWeather;
     TextView tex_show;
     TextView tex_top;
-    WeatherDBhelper weatherDBhelper;
     String Name=null;
+    String PhoneNum=null;
 
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        tex_top= (TextView) findViewById(R.id.tex_top);
+        tex_show= (TextView) findViewById(R.id.tex_show);
 
+        show_picture();//显示背景图片
 
+        show_City(); //显示Top城市名字
 
-        Button FDX= (Button) findViewById(R.id.FDX);
-        FDX.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
+        show_data();//显示 WeatherAllData 内容
 
-                 /*Intent intent=new Intent();
-                intent.setAction(Intent.ACTION_SENDTO);
-                intent.setData(Uri.parse("smsto:"+"18811127360"));
-                intent.putExtra("sms_body", "The SMS text");
-                startActivity(intent);*/
-
-            }
-        });
-
-
-        //创建SQLiteOpenHelper对象，注意第一次运行时，此时数据库并没有被创建
-       weatherDBhelper = new WeatherDBhelper(this);
-
-
-        SimpleDateFormat formatter = new SimpleDateFormat ("yyyyMMdd");
-        Date curDate = new Date(System.currentTimeMillis());
-        String str = formatter.format(curDate);
-        //获取当前时间
-        Toast.makeText(this, str, Toast.LENGTH_SHORT).show();
-
-
-
-         tex_top= (TextView) findViewById(R.id.tex_top);
-         tex_show= (TextView) findViewById(R.id.tex_show);
-        //显示数据
-        show_picture();
-        show_City();
-        show_data();
-
+        //是否成功获取数据判断
         final Handler handler = new Handler(){
             @Override
             public void handleMessage(Message msg) {
@@ -112,6 +81,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         };
+        //将获取到的City 设置到tex_top中
         final Handler handlerCity = new Handler(){
             @Override
             public void handleMessage(Message msgCity) {
@@ -126,224 +96,239 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         };
-        final Handler handlerWeather = new Handler(){
+        //处理传来的now_Weather数据
+        final Handler handlerWeather = new Handler() {
             @Override
             public void handleMessage(Message msgWeather) {
 
-                String now_Weather=msgWeather.obj.toString();
+                String now_Weather = msgWeather.obj.toString();
 
-                //储存城市信息
+                change_picture(now_Weather);
 
-                OutputStream out=null;
-                try {
-                    FileOutputStream fileOutputStream=openFileOutput("WeatherType",MODE_PRIVATE);
-                    out=new BufferedOutputStream(fileOutputStream);
-                    try {
-                        out.write(now_Weather.getBytes(StandardCharsets.UTF_8));
-                    }
-                    finally {
-                        if(out!=null)
-                            out.close();
-                    }
-                }
-                catch (Exception e){
-                    e.printStackTrace();
-                }
-               change_picture(now_Weather);
+                /****************************短信提醒*********************************/
+                if (now_Weather.equals("小雨") || now_Weather.equals("中雨") || now_Weather.equals("大雨") ||
+                        now_Weather.equals("爆雨") || now_Weather.equals("阵雨"))
+                    send_message("近期可能下雨，出门记得带雨具");
+
+                if (now_Weather.equals("浮尘") || now_Weather.equals("扬尘") ||
+                        now_Weather.equals("强沙尘暴")||now_Weather.equals("霾"))
+
+                    send_message("近期空气质量较差，请减少户外活动");
+                if (now_Weather.equals("中雪") ||now_Weather.equals("暴雪") || now_Weather.equals("大雪"))
+                    send_message("近期雪有点大，减少外出吧");
+
+                //储存当前天气信息
+
+                save_data(now_Weather, WeatherTypeFileName);
             }
         };
 
 
-           getWeather=new Runnable() {
-                @Override
-                public void run() {
 
-                    try {
-                        final String url="http://v.juhe.cn/weather/index?format=1&cityname="+Name+"&key=bf3abfec4dff0cd1f2dd3d0a396f1712";
-                        URL httpUrl=new URL(url);
-                        Log.v("url",url);
+                getWeather = new Runnable() {
+                    @Override
+                    public void run() {
+
                         try {
-                            HttpURLConnection conn= (HttpURLConnection) httpUrl.openConnection();
-                            conn.setReadTimeout(3000);//超时处理
-                            conn.setRequestMethod("GET");//GET获取
-
-                            BufferedReader bufferedReader=new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                            StringBuffer stringBuffer=new StringBuffer();
-                            String str;
-                           /* while((str=bufferedReader.readLine())!=null)
-                            {
-                                stringBuffer.append(str);
-                            }*/
-                            str=bufferedReader.readLine();
+                            final String url = "http://v.juhe.cn/weather/index?format=1&cityname=" + Name + "&key=bf3abfec4dff0cd1f2dd3d0a396f1712";
+                            URL httpUrl = new URL(url);
                             try {
-                                JSONObject object=new JSONObject(str);
-                                int result=object.getInt("resultcode");
-                                if (result==200)
-                                {
-                                    JSONObject resultJson=object.getJSONObject("result");
-                                    JSONObject todayJson=resultJson.getJSONObject("today");
-                                    String temperature=todayJson.getString("temperature"); //获取温度
-                                    String weather=todayJson.getString("weather");//获取天气状态
-                                    Log.v("A",weather);
+                                HttpURLConnection conn = (HttpURLConnection) httpUrl.openConnection();
+                                conn.setReadTimeout(3000);//超时处理
+                                conn.setRequestMethod("GET");//GET获取
+
+                                BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                                StringBuffer stringBuffer = new StringBuffer();
+                                String str;
+
+                                str = bufferedReader.readLine();
+                                //一以下为解析获取的JSON数据
+                                try {
+                                    JSONObject object = new JSONObject(str);
+                                    int result = object.getInt("resultcode");
+                                    if (result == 200) {
+                                        JSONObject resultJson = object.getJSONObject("result");
+                                        /**********以下为解析当前时间JSON********/
+
+                                        JSONObject skJson = resultJson.getJSONObject("sk");
+                                        String time = skJson.getString("time");//数据获取时间
+                                        String humidity = skJson.getString("humidity");//获取湿度
+                                        String wind_direction = skJson.getString("wind_direction");//风向
+                                        String wind_strength = skJson.getString("wind_strength");//风力等级
 
 
+                                        /***************以下为解析今天天气的JSON数据*************************/
 
-                                    Message msgWeather=new Message();
-                                    msgWeather.obj=weather;
-                                    handlerWeather.sendMessage(msgWeather);
-
-
-
-                                    JSONObject skJson=resultJson.getJSONObject("sk");
-                                    String time=skJson.getString("time");//数据获取时间
-                                    String humidity=skJson.getString("humidity");//获取湿度
-                                    String wind_direction=skJson.getString("wind_direction");//风向
-                                    String wind_strength=skJson.getString("wind_strength");//风力等级
-                                    //today
-                                    String wind=todayJson.getString("wind");//获取风的状态
-                                    String city=todayJson.getString("city");//获取当前城市
-                                    String date_y=todayJson.getString("date_y");//获取当前日期
-                                    String dressing_index=todayJson.getString("dressing_index");//获取当前体感温度
-                                    String dressing_advice=todayJson.getString("dressing_advice");//今日天气推荐
-                                    String week=todayJson.getString("week");//获取星期几
-
-                                    Log.v("A",date_y+city+"天气预报"+weather+"当前气温"+temperature
-                                            +"当前体感温度"+dressing_index+wind+dressing_advice);
+                                        JSONObject todayJson = resultJson.getJSONObject("today");
+                                        String temperature = todayJson.getString("temperature"); //获取温度
+                                        String weather = todayJson.getString("weather");//获取天气状态
+                                        String wind = todayJson.getString("wind");//获取风的状态
+                                        String city = todayJson.getString("city");//获取当前城市
+                                        String date_y = todayJson.getString("date_y");//获取当前日期
+                                        String dressing_index = todayJson.getString("dressing_index");//获取当前体感温度
+                                        String dressing_advice = todayJson.getString("dressing_advice");//今日天气推荐
+                                        String week = todayJson.getString("week");//获取星期几
 
 
+                                        /*********向handler传递当前天气数据***********/
+                                        Message msgWeather = new Message();
+                                        msgWeather.obj = weather;
+                                        handlerWeather.sendMessage(msgWeather);
 
 
-                                    //future
+                                        /************以下为解析未来两天天气JSON数据*****************************/
 
 
-                                    //day_20161108
-                                    SimpleDateFormat formatter = new SimpleDateFormat ("yyyyMMdd");
-                                    Date curDate = new Date(System.currentTimeMillis());
-                                    String str_date = formatter.format(curDate);
-                                    //获取当前时间
+                                        /********************未来天气的JSON格式**********************************/
+
+                                        /**
+                                         "future":{
+                                         "day_20161107":
+                                         {
+                                         "temperature":"1℃~11℃",
+                                         "weather":"晴",
+                                         "weather_id":
+                                         {
+                                         "fa":"00",
+                                         "fb":"00"
+                                         },
+                                         "wind":"微风",
+                                         "week":"星期一",
+                                         "date":"20161107"
+                                         },
+                                         "day_20161108":{
+                                         "temperature":"-1℃~10℃",
+                                         "weather":"晴",
+                                         "weather_id":{
+                                         "fa":"00",
+                                         "fb":"00"
+                                         },
+                                         "wind":"微风",
+                                         "week":"星期二",
+                                         "date":"20161108"
+                                         },
+                                         .....
+                                         }
+
+                                         */
+
+                                        /****************或许当前系统时间************************/
+
+                                        SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMdd");
+                                        Date curDate = new Date(System.currentTimeMillis());
+                                        String str_date = formatter.format(curDate);
 
 
-                                    //明天数据
-                                    int one=Integer.parseInt(str_date);
-                                    one=one+1;
+                                        /*********获取明天日期***********/
+
+                                        int one = Integer.parseInt(str_date);
+                                        one = one + 1;
+
+                                        /*****日期格式转JSON数据对应格式*********/
+
+                                        String one_day = Integer.toString(one);
+                                        one_day = "day_" + one_day;
+
+                                        /**************明日天气状态************************/
+
+                                        JSONObject futureJson = resultJson.getJSONObject("future");
+
+                                        JSONObject one_dayJson = futureJson.getJSONObject(one_day);
+                                        String one_week = one_dayJson.getString("week");
+                                        String one_wind = one_dayJson.getString("wind");
+                                        String one_date = one_dayJson.getString("date");
+                                        String one_temperature = one_dayJson.optString("temperature");
+                                        String one_weather = one_dayJson.optString("weather");
 
 
-                                    String one_day=Integer.toString(one);
-                                    one_day="day_"+one_day;
+                                        /*************获取后天日期******************/
+
+                                        int two = Integer.parseInt(str_date);
+                                        two = two + 2;
 
 
-                                    JSONObject futureJson=resultJson.getJSONObject("future");
+                                        /*****日期格式转JSON数据对应格式*********/
 
-                                    JSONObject one_dayJson=futureJson.getJSONObject(one_day);
-                                    String one_week=one_dayJson.getString("week");
-                                    String one_wind=one_dayJson.getString("wind");
-                                    String one_date=one_dayJson.getString("date");
-                                    String one_temperature=one_dayJson.optString("temperature");
-                                    String one_weather=one_dayJson.optString("weather");
+                                        String two_day = Integer.toString(two);
+                                        two_day = "day_" + two_day;
 
 
+                                        Log.v("One_DAY", one_day);
+                                        Log.v("tow", two_day);
 
-                                    //后天数据
-                                    int two=Integer.parseInt(str_date);
-                                    two=two+2;
+                                        /**************后天天气状态********************/
 
-                                    String two_day=Integer.toString(two);
-                                    two_day="day_"+two_day;
+                                        JSONObject two_dayJson = futureJson.getJSONObject(two_day);
 
-
-                                    Log.v("One_DAY",one_day);
-                                    Log.v("tow",two_day);
-                                    JSONObject two_dayJson=futureJson.getJSONObject(two_day);
-
-                                    String two_week=two_dayJson.getString("week");
-                                    String two_wind=two_dayJson.getString("wind");
-                                    String two_date=two_dayJson.getString("date");
-
-                                    String two_temperature=two_dayJson.getString("temperature");
-                                    String two_weather=two_dayJson.getString("weather");
+                                        String two_week = two_dayJson.getString("week");
+                                        String two_wind = two_dayJson.getString("wind");
+                                        String two_date = two_dayJson.getString("date");
+                                        String two_temperature = two_dayJson.getString("temperature");
+                                        String two_weather = two_dayJson.getString("weather");
 
 
-
-                                    String wdata="\n\n\n"+"获取时间："+time+"\n\n当前湿度："+humidity+"\n\n当前风况："+
-                                            wind_direction+wind_strength+"\n\n\n当前日期："+date_y+"\n\n"+week+"\n\n"+
-                                            "天气状况："+weather+
-                                            "\n\n当前气温："+temperature
-                                            +"\n\n体感温度:  "+dressing_index+"\n\n当前风速："
-                                            +wind+"\n\n\n温馨提示:  "+dressing_advice+
-                                            "\n\n\n\n"+"未来几天天气预报\n\n\n"+"" +
-                                            "当前日期："+one_date+"\n\n"+one_week+"\n\n当前风速："+one_wind+"\n\n当天气温："+one_temperature+
-                                            "\n\n天气状况："+one_weather+ "\n\n\n当前日期："+two_date+"" +
-                                            "\n\n"+two_week+"\n\n当天风速："+two_wind+"\n\n当天气温："+two_temperature+
-                                            "\n\n天气状况："+two_weather;
-
-
+                                        /***************    设置 tex_show 显示的内容     ******************/
+                                        String wdata = "\n\n\n" + "获取时间：" + time + "\n\n当前湿度：" + humidity + "\n\n当前风况：" +
+                                                wind_direction + wind_strength + "\n\n\n当前日期：" + date_y + "\n\n" + week + "\n\n" +
+                                                "天气状况：" + weather +
+                                                "\n\n当前气温：" + temperature
+                                                + "\n\n体感温度:  " + dressing_index + "\n\n当前风速："
+                                                + wind + "\n\n\n温馨提示:  " + dressing_advice +
+                                                "\n\n\n\n" + "未来几天天气预报\n\n\n" + "" +
+                                                "当前日期：" + one_date + "\n\n" + one_week + "\n\n当前风速：" + one_wind + "\n\n当天气温：" + one_temperature +
+                                                "\n\n天气状况：" + one_weather + "\n\n\n当前日期：" + two_date + "" +
+                                                "\n\n" + two_week + "\n\n当天风速：" + two_wind + "\n\n当天气温：" + two_temperature +
+                                                "\n\n天气状况：" + two_weather;
 
 
+                                        /*********以下为储存tex_show信息内容******************/
 
-                                    //储存天气信息
-                                    OutputStream out=null;
-                                    try {
-                                        FileOutputStream fileOutputStream=openFileOutput(MyFileName,MODE_PRIVATE);
-                                        out=new BufferedOutputStream(fileOutputStream);
-                                        try {
-                                            out.write(wdata.getBytes(StandardCharsets.UTF_8));
-                                        }
-                                        finally {
-                                            if(out!=null)
-                                                out.close();
-                                        }
+                                        save_data(wdata, WeatherFileName);
+
+
+                                        /*********以下为储存当前天气城市名字****************/
+
+                                        save_data(city, CityFileName);
+
+                                        /*********向handler传递全部天气数据***********/
+
+                                        Message msg = new Message();
+                                        msg.obj = wdata;
+                                        msg.what = 1;
+                                        handler.sendMessage(msg);
+
+
+                                        /*********向handler传递当前城市名字***********/
+
+                                        Message msgCity = new Message();
+                                        msgCity.obj = city;
+                                        msgCity.what = 0;
+                                        handlerCity.sendMessage(msgCity);
+                                        //Insert(temperature,weather,city,dressing_advice,date_y,wind);
+                                    } else {
+                                        /*********获取数据失败时提示*********/
+                                        Message msg = new Message();
+                                        msg.what = 0;
+                                        handler.sendMessage(msg);
+
                                     }
-                                    catch (Exception e){
-                                        e.printStackTrace();
-                                    }
-
-                                    //储存城市信息
-                                    try {
-                                        FileOutputStream fileOutputStream=openFileOutput("CityName",MODE_PRIVATE);
-                                        out=new BufferedOutputStream(fileOutputStream);
-                                        try {
-                                            out.write(city.getBytes(StandardCharsets.UTF_8));
-                                        }
-                                        finally {
-                                            if(out!=null)
-                                                out.close();
-                                        }
-                                    }
-                                    catch (Exception e){
-                                        e.printStackTrace();
-                                    }
-                                    Message msg=new Message();
-                                    msg.obj=wdata;
-                                    msg.what=1;
-                                    handler.sendMessage(msg);
-
-                                    Message msgCity=new Message();
-                                    msgCity.obj=city;
-                                    msgCity.what=0;
-                                    handlerCity.sendMessage(msgCity);
-                                    //Insert(temperature,weather,city,dressing_advice,date_y,wind);
+                                } catch (JSONException e) {
+                                    e.printStackTrace();
                                 }
-                                else {
-                                    Message msg=new Message();
-                                    msg.what=0;
-                                    handler.sendMessage(msg);
 
-                                }
-                            } catch (JSONException e) {
+                            } catch (IOException e) {
                                 e.printStackTrace();
                             }
-
-                        } catch (IOException e) {
+                        } catch (MalformedURLException e) {
                             e.printStackTrace();
                         }
-                    } catch (MalformedURLException e) {
-                        e.printStackTrace();
+
                     }
+                };
+            }
 
-                }
-            };
 
-    }
+
     //创建一个菜单
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -353,15 +338,17 @@ public class MainActivity extends AppCompatActivity {
     }
 
     //菜单点击事件
-//弹出一个对话框，版本说明
+
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()){
             case R.id.action_about:
             {
+                /*********************弹出一个对话框，版本说明***************************/
+
                 AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
-                builder.setMessage("版本1.0\n" +
-                        "编译日期：2016.11.01\n" +
+                builder.setMessage("版本2.0\n" +
+                        "编译日期：2016.11.10\n" +
                         "制作人：Wper_Smile\n"+
                         "email：wpersmile@163.com\n"+
                         "主页：www.wpersmile.com")//显示对话框消息内容
@@ -369,8 +356,21 @@ public class MainActivity extends AppCompatActivity {
                 builder.show();
             }
             break;
+            case R.id.action_update:
+            {
+                /*********************弹出一个对话框，版本更新说明***************************/
+
+                AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                builder.setMessage(
+                        "修复第一版界面变白及程序偶尔崩溃等BUG，修改部分操作逻辑,增加程序稳定性\n\n" +
+                        "增加短信预警接口，长按MENU即可调出菜单选择。\n")//显示对话框消息内容
+                        .setTitle("WP天气  版本2.0\n");//对话框标题
+                builder.show();
+            }
+            break;
             case R.id.action_query:
             {
+                /*********************弹出一个对话框，搜索天气***************************/
                AlertDialog.Builder builder=new AlertDialog.Builder(MainActivity.this);
                 LayoutInflater inflater=getLayoutInflater();
                 final View view=inflater.inflate(R.layout.query_activity,null);
@@ -382,8 +382,7 @@ public class MainActivity extends AppCompatActivity {
 
                                 EditText editText= (EditText) view.findViewById(R.id.edt_Adg_getCity);
                                 Name=editText.getText().toString();
-                                Log.v("TEST",Name);
-                                Toast.makeText(MainActivity.this,Name, Toast.LENGTH_SHORT).show();
+
                                 Thread thread=new Thread(null,getWeather,"thread");
                                 thread.start();
                             }
@@ -397,88 +396,89 @@ public class MainActivity extends AppCompatActivity {
                 builder.show();
             }
             break;
+
+            case R.id.action_sms:
+            {
+                /********************* 弹出一个对话框，设置天气预警号码 ***************************/
+                AlertDialog.Builder builder=new AlertDialog.Builder(MainActivity.this);
+                LayoutInflater inflater=getLayoutInflater();
+                final View view=inflater.inflate(R.layout.sms_activity,null);
+                builder.setView(view)
+                        .setTitle("灾害预警号码设置")
+                        .setPositiveButton("确认", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+
+                                EditText editText= (EditText) view.findViewById(R.id.edt_Adg_getPhoneNum);
+                               PhoneNum=editText.getText().toString();
+                                Toast.makeText(MainActivity.this, "信息输入成功", Toast.LENGTH_SHORT).show();
+                                save_data(PhoneNum,PhoneNumFileName);
+                            }
+                        })
+                        .setNegativeButton("取消", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                Toast.makeText(MainActivity.this, "点击了取消", Toast.LENGTH_SHORT).show();
+                            }
+                        });
+                builder.show();
+            }
+            break;
+
         }
         return super.onOptionsItemSelected(item);
     }
 
 
+    /*********************  当启动APP时，调用此方法显示天气数据   ***************************/
+
     public void show_data()
     {
         try {
-            FileInputStream fis = openFileInput(MyFileName);
-            BufferedInputStream bis = new BufferedInputStream(fis);
-            BufferedReader reader = new BufferedReader (new InputStreamReader(bis));
-
-            StringBuilder stringBuilder=new StringBuilder("");
-            try{
-                while (reader.ready()) {
-                    stringBuilder.append((char)reader.read());
-                }
-                String show=stringBuilder.toString();
-                Log.v("log",show);
-                tex_show.setText(show);
-                //Toast.makeText(MainActivity.this, stringBuilder.toString(),Toast.LENGTH_LONG).show();
-            }
-            finally {
-                if(reader!=null)
-                    reader.close();
-            }
+            String show_data=get_data(WeatherFileName);
+            if (show_data.equals("")||show_data==null)
+                tex_show.setText("长按MENU键可以调出操作菜单哦");
+            else
+                tex_show.setText(show_data);
         }
         catch (Exception e){
-            e.printStackTrace();
+            tex_show.setText("长按MENU键可以调出操作菜单哦");
         }
 
     }
+
+    /*********************  当启动APP时，调用此方法显示城市数据   ***************************/
+
     public void show_City()
     {
-        try {
-            FileInputStream fis = openFileInput("CityName");
-            BufferedInputStream bis = new BufferedInputStream(fis);
-            BufferedReader reader = new BufferedReader (new InputStreamReader(bis));
 
-            StringBuilder stringBuilder=new StringBuilder("");
-            try{
-                while (reader.ready()) {
-                    stringBuilder.append((char)reader.read());
-                }
-                String show=stringBuilder.toString();
-                tex_top.setText(show+"天气预报");
-            }
-            finally {
-                if(reader!=null)
-                    reader.close();
-            }
+        try {
+            String show_data=get_data(CityFileName);
+            if (show_data.equals("")||show_data==null)
+                tex_top.setText("WP"+"天气预报");
+            else
+                tex_top.setText(show_data);
         }
         catch (Exception e){
-            e.printStackTrace();
+            tex_top.setText("WP"+"天气预报");
         }
-    }
 
+
+    }
+    /*********************  当启动APP时，调用此方法显示天气背景   ***************************/
     public void show_picture()
     {
         try {
-            FileInputStream fis = openFileInput("WeatherType");
-            BufferedInputStream bis = new BufferedInputStream(fis);
-            BufferedReader reader = new BufferedReader (new InputStreamReader(bis));
-
-            StringBuilder stringBuilder=new StringBuilder("");
-            try{
-                while (reader.ready()) {
-                    stringBuilder.append((char)reader.read());
-                }
-                String now_Weather=stringBuilder.toString();
-                change_picture(now_Weather);
-            }
-            finally {
-                if(reader!=null)
-                    reader.close();
-            }
+            String show_data=get_data(WeatherTypeFileName);
+            change_picture(show_data);
         }
         catch (Exception e){
-            e.printStackTrace();
+            change_picture("晴");
         }
+
     }
 
+    /*********************   根据获取的天气类型不同   调用此方法设置不同的天气背景  PS:天气种类不全 待扩充 else 为待扩充 **********************/
     public void change_picture(String now_Weather){
 
         if (now_Weather.equals("霾")||now_Weather.equals("浮尘")||now_Weather.equals("扬尘")||
@@ -489,21 +489,21 @@ public class MainActivity extends AppCompatActivity {
             Drawable drawable=resources.getDrawable(R.drawable.mai);
             relativeLayout.setBackgroundDrawable(drawable);
         }
-        if (now_Weather.equals("晴"))
+        else if (now_Weather.equals("晴"))
         {
             RelativeLayout relativeLayout= (RelativeLayout) findViewById(R.id.activity_main);
             Resources resources = getResources();
             Drawable drawable=resources.getDrawable(R.drawable.sun);
             relativeLayout.setBackgroundDrawable(drawable);
         }
-        if (now_Weather.equals("多云")||now_Weather.equals("阴天"))
+        else if (now_Weather.equals("多云")||now_Weather.equals("阴天"))
         {
             RelativeLayout relativeLayout= (RelativeLayout) findViewById(R.id.activity_main);
             Resources resources = getResources();
             Drawable drawable=resources.getDrawable(R.drawable.cloudy);
             relativeLayout.setBackgroundDrawable(drawable);
         }
-        if (now_Weather.equals("小雨")||now_Weather.equals("中雨")||now_Weather.equals("大雨")||
+        else if (now_Weather.equals("小雨")||now_Weather.equals("中雨")||now_Weather.equals("大雨")||
                 now_Weather.equals("爆雨")||now_Weather.equals("阵雨"))
         {
             RelativeLayout relativeLayout= (RelativeLayout) findViewById(R.id.activity_main);
@@ -511,13 +511,75 @@ public class MainActivity extends AppCompatActivity {
             Drawable drawable=resources.getDrawable(R.drawable.rain);
             relativeLayout.setBackgroundDrawable(drawable);
         }
+        else
+        {
+            RelativeLayout relativeLayout= (RelativeLayout) findViewById(R.id.activity_main);
+            Resources resources = getResources();
+            Drawable drawable=resources.getDrawable(R.drawable.cloudy);
+            relativeLayout.setBackgroundDrawable(drawable);
+        }
+    }
+
+
+
+    /****************  天气预警  根据天气情况，向用户发送预警短信  PS：网络接口需要付费   这里只实现功能  ********/
+    public void send_message(String message){
+
+        try {
+            String sms_phoneNum = get_data(PhoneNumFileName);
+            if (sms_phoneNum!=null || sms_phoneNum.equals(""))
+            {
+                PendingIntent pendingIntent=PendingIntent.getBroadcast(this,0,new Intent(),0);
+                SmsManager smsManager=SmsManager.getDefault();
+                smsManager.sendTextMessage(sms_phoneNum,"null",message,pendingIntent,null);
+            }
+        }
+        catch (Exception e){}
+
 
     }
-    public void send_message(String message){
-        PendingIntent pendingIntent=PendingIntent.getBroadcast(this,0,new Intent(),0);
-        SmsManager smsManager=SmsManager.getDefault();
-        smsManager.sendTextMessage("10086","null",message,pendingIntent,null);
 
+    /*********************  存储数据    方式：文件 ***************************/
+    public void save_data(String object,String fileNane) {
+        OutputStream out = null;
+        try {
+            FileOutputStream fileOutputStream = openFileOutput(fileNane, MODE_PRIVATE);
+            out = new BufferedOutputStream(fileOutputStream);
+            try {
+                out.write(object.getBytes(StandardCharsets.UTF_8));
+            } finally {
+                if (out != null)
+                    out.close();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    /*********************  获取数据  方式：文件   ***************************/
+    public String get_data(String fileName)
+    {
+        String data_res=null;
+        try {
+            FileInputStream fis = openFileInput(fileName);
+            BufferedInputStream bis = new BufferedInputStream(fis);
+            BufferedReader reader = new BufferedReader (new InputStreamReader(bis));
+
+            StringBuilder stringBuilder=new StringBuilder("");
+            try{
+                while (reader.ready()) {
+                    stringBuilder.append((char)reader.read());
+                }
+               data_res=stringBuilder.toString();
+            }
+            finally {
+                if(reader!=null)
+                    reader.close();
+            }
+        }
+        catch (Exception e){
+            e.printStackTrace();
+        }
+        return data_res;
     }
 
 
@@ -550,19 +612,7 @@ public class MainActivity extends AppCompatActivity {
 
 
 /*
-
-    private  void showWeather()
-    {
-        SQLiteDatabase db = weatherDBhelper.getReadableDatabase();
-        String sql="select top 1 weather from weather order desc";
-        db.query("weather","wind",null,null,null,null,"desc","top1");
-
-    }
-
-
-
-
-    //使用Sql语句插入单词
+    //使用Sql语句插入天气
     private void InsertUserSql(String strWord, String strMeaning, String strSample){
         String sql="insert into  words(word,meaning,sample) values(?,?,?)";
 

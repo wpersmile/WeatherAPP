@@ -2,9 +2,10 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:orientation="vertical" android:layout_width="match_parent"
     android:layout_height="match_parent">
+
     <EditText
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:id="@+id/edt_Adg_getCity"
-        android:hint="城市名字/或者区域 如北京/或者朝阳"/>
+        android:id="@+id/edt_Adg_getPhoneNum"
+        android:hint="请输入手机号码"/>
 </LinearLayout>

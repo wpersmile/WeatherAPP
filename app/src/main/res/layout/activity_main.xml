@@ -19,11 +19,7 @@
         android:textSize="30dp"
         android:textStyle="bold"
         android:textColor="@color/colorWhite"/>
-    <Button
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:id="@+id/FDX"
-        android:text="短信" />
+
     <ScrollView
         android:layout_below="@id/tex_top"
         android:layout_width="match_parent"
